@@ -1,0 +1,207 @@
+import urllib3
+import time
+import regex as re
+from bs4 import BeautifulSoup, ParserRejectedMarkup
+from openpyxl import Workbook
+from openpyxl import load_workbook
+import datetime
+import pandas as pd
+
+
+
+headers={"User-Agent":"","Accept-Encoding": "gzip,deflate","Host":"www.sec.gov" }
+SIC=re.compile(r'STANDARD INDUSTRIAL CLASSIFICATION:\s*(?:[^\[]*\[([\d]+)\s*\]|([\d]+))')
+HTMLtag=re.compile(r'<html>')
+Website=re.compile(r'edgar+[\S]*')
+cik = re.compile(r'(\d{5,7})\|')
+date=re.compile(r'\|+(\d{4})[-/](\d{2})[-/](\d{2})\|')
+name=re.compile(r'\|([^|]+)\|')
+city_pattern = (r'CITY:\s*(.*?)\s*STATE:')
+state_pattern = (r'STATE:\s*(.*?)\s*ZIP:')
+zip_pattern = (r'ZIP:\s*(\d{5})')
+
+file = 'Healthcare.xlsx'
+
+#Initiate Spaghetti
+
+try:
+    wb = load_workbook(file)
+    ws = wb.active
+    print('Loaded existing workbook')
+    row_index = ws.max_row
+    print('Max row index:', row_index)
+except FileNotFoundError:
+    wb=Workbook()
+    ws=wb.create_sheet(title=file)
+    print('new workbook', ws)
+    ws.append(['Date','Name','CIK','SIC Code','Sentence','URL','Headquarters'])
+    row_index = 2
+    print(row_index)
+    
+for i in range(2000,2025): #every possible index list
+    year=str(i)
+    for j in range(1,5): #every possible quarter
+        Q='QTR'+str(j)
+        url='https://www.sec.gov/Archives/edgar/full-index/'+year+'/'+Q+'/master.idx'
+        time.sleep(0.1) #to comply with SEC scraping regulations
+        ''.join(url)
+        http=urllib3.PoolManager()
+        try:
+            miner=http.request(method='get',url=url,body=None,headers=headers) #pulling the data
+            print(i, 'opened.')
+            try:
+                miner_text=miner.data.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    miner_text=miner.data.decode('latin-1')
+                except UnicodeDecodeError:
+                    print('failed to decode the data with any decoding')
+        except urllib.error.HTTPError as e:
+            print(f'HTTP error occurred: {e.code} - {e.reason}',url)
+        except urllib.error.URLError as e:
+            print(f'URL error occurred: {e.reason}',url)
+        except Exception as e:
+            print(f'An unexpected error occurred: {e}', url)
+        row_index=row_index+1
+        masterindex=re.split('\n',miner_text)
+        tenKindex=[address for address in masterindex if '10-K' in address] #sorting index to only include 10K, 10Q, 8K.
+        print('row:', row_index)
+        print('heading to the sheet')
+        for address in tenKindex:
+            CIK=cik.findall(address)
+            DATE= date.findall(address)
+            NAME=name.findall(address)
+            working=Website.findall(address)
+            workinglist=[comma.strip("',") for comma in working]
+            workingliste=[brace.strip("]") for brace in workinglist]
+            prefix='https://www.sec.gov/Archives/'
+            prefixandsuffix=[prefix+suffix for suffix in workingliste] #makes the urls
+
+            for w in prefixandsuffix: 
+                time.sleep(0.1)
+                SECDATA=http.request(method='get',url=w,body=None,headers=headers)
+                try:
+                    SECDATA_Decoded=SECDATA.data.decode('utf-8')
+                except UnicodeDecodeError:
+                    try:
+                        SECDATA_Decoded=SECDATA.data.decode('latin-1')
+                    except UnicodeDecodeError:
+                        print('Failed to decode the data with any encoding :c')
+                    except urllib3.exceptions.HTTPError as e:
+                        print('HTTPError occurred:', e)
+                except Exception as e:
+                    print("An unknown error occurred:", e) 
+                SECDATA_Decoded=re.split('\n',SECDATA_Decoded)
+                SECDATA_Decoded='\t'.join(SECDATA_Decoded)
+                SICc=SIC.findall(str(SECDATA_Decoded))
+                gateway=False
+                if SICc:
+                    SICCODE=[int(item[0] or item[1]) for item in SICc if item[0].isdigit() or item[1].isdigit()]
+                    if SICCODE:
+                        if int(SICCODE[0]) in [8000, 8011, 8050, 8051, 8060, 8062, 8071, 8082, 8090, 8093]:
+                            gateway=True
+                            print(SICCODE[0]) #Checking to see if the filing is from a healthcare company
+                            if gateway and len(HTMLtag.findall(SECDATA_Decoded))>=1: #checking for html tag & converting to text if necessary
+                                try:
+                                    parsers= ['html.parser', 'lxml', 'html5lib']
+                                    for parser in parsers:
+                                        try:
+                                            SECDATA_Decoded = BeautifulSoup(SECDATA_Decoded, parser)
+                                            text_content=SECDATA_Decoded.get_text()
+                                            #print('Parsed with', parser)
+                                        except ParserRejectedMarkup:
+                                            print('failed to retrieve document')
+                                        except Exception as e:
+                                            print("an unknown error occurred", e)
+                                except Exception as e:
+                                    print("an unknown error occurred")
+
+                            elif gateway and len(HTMLtag.findall(SECDATA_Decoded))==0:
+                                try:
+                                    SECDATA_Decoded = BeautifulSoup(SECDATA_Decoded, 'html.parser')
+                                    text_content=SECDATA_Decoded.get_text()
+                                    #print('sneaky html')
+                                except Exception as e:
+                                    print('Failed to parse as HTML', e)
+                                    text_content=SECDATA_Decoded
+                                    #print('text')
+                            else:
+                                print('dud')
+
+
+                            city_ = re.findall(city_pattern, text_content) #searching the text converted document for an address
+                            state_ = re.findall(state_pattern, text_content)
+                            zip_ = re.findall(zip_pattern, text_content)
+                            if city_ and state_ and zip_:
+                                full_address=city_[0]+', '+state_[0]+', '+zip_[0]
+                                print(full_address)
+                            else:
+                                full_address = "not found"
+                            for state in state_:
+                                if state.lower() in ['tx','texas']:
+                                    sentences=re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", text_content) #searching all of the sentences for keywords
+                                    alliance_pattern = r"(strategic alliance|strategic partnership|partnership|joint venture|venture|alliance)(?!.*limited partnership interest|LP|acquisition|merger|limited partnership|venture capital|venture capitalist)"
+                                    alliance_found=False
+                                    for sentence in sentences:
+
+                                        if re.search(alliance_pattern, sentence, flags=re.IGNORECASE):
+                                            #print('alliance found:',DATE, NAME, CIK, SICCODE, sentence)
+                                            words=re.findall(r'\b\w+\b', sentence)
+                                            cleaned_ = [re.sub(r'<[^>]+>', '', word) for word in words]
+                                            cleaned_words=' '.join(cleaned_)
+                                            try:
+                                                cleaned_words= cleaned_words.encode('utf-8')
+                                            except Exception as e:
+                                                    print('Error', e)
+                                            alliance_found=True
+                                            if not alliance_found:
+                                                cleaned_words = 'no alliance'
+                                            try:
+                                                if DATE is not None and NAME is not None and CIK is not None and SICCODE is not None and w is not None and cleaned_words is not None:
+                                                    date_tuple = DATE[0]
+                                                    date_str = '-'.join(date_tuple)
+                                                    CIK_stripped= [string.rstrip('|') for string in CIK]
+                                                    CIK_int = [int(string) for string in CIK_stripped]
+                                                    ws.cell(row=row_index, column=1, value=date_str)
+                                                    ws.cell(row=row_index, column=2, value=NAME[0])
+                                                    ws.cell(row=row_index, column=3, value=str(CIK_int).replace('[', '').replace(']',''))
+                                                    ws.cell(row=row_index, column=4, value=str(SICCODE).replace('[', '').replace(']',''))
+                                                    if cleaned_words == 'no alliance':
+                                                        ws.cell(row=row_index, column=5, value=cleaned_words)
+                                                    else:
+                                                        ws.cell(row=row_index, column=5, value=cleaned_words)
+                                                        ws.cell(row=row_index, column=6, value=w)
+                                                        ws.cell(row=row_index, column=7, value=full_address)
+                                                    row_index += 1
+                                                    print('Catalogued.')
+                                                    print(DATE[0])
+                                            except ValueError:
+                                                print('ValueError: could not convert data')
+                                            except TypeError:
+                                                print('TypeError: NoneType encountered in alliance_data.')
+                                            except Exception as e:
+                                                print(f'An unexpected error occurred: {e}')
+                                            wb.save(file)
+                                            print('DONE!')
+                                            
+                                        
+                                else: 
+                                    print('Out of State')
+                        else:
+                            gateway=False
+                            #print('false')
+                            continue
+                    else:
+                        gateway=False
+                        print("SICCODE FAILED")
+                else:
+                    gateway=False
+                    print(workingliste)
+                    print('SICc is empty')
+                    
+max_row = ws.max_row
+ws.cell(row=1, column=ws.max_column + 1, value="CODE")  
+for row_num in range(2, max_row + 1):
+    ws.cell(row=row_num, column=ws.max_column, value="")
+    
+wb.save(file)
