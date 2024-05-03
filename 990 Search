@@ -1,0 +1,513 @@
+from bs4 import BeautifulSoup
+import zipfile
+import os
+import time
+import regex as re
+import pandas as pd
+import zlib
+from openpyxl import Workbook
+from openpyxl import load_workbook
+
+wb=Workbook()
+ws=wb.create_sheet(title='NP.xlsx')
+ws.append(['ID','DATE','FILER','RootEIN','FZIP','FCITY','FSTATE','FSTREET','ENTITY2','ZIP','CITY','STATE','STREET','2EIN','placeholder','Website', 'Revenue', 'Net Income','RevenueRelated','TransAmt','TransType'])
+row_index=2
+
+EIN = re.compile(r'<EIN>([\s\S]*?)(?=</EIN>)')
+WEB = re.compile(r'<WebsiteAddressTxt>([\s\S]*?)(?=</WebsiteAddressTxt>)')
+Sch_R = re.compile(r'</.*?ScheduleR>')
+r_info = re.compile(r'<IRS990ScheduleR([\s\S]*?)(?=</IRS990ScheduleR>)')
+NAME = re.compile(r'<BusinessNameLine1Txt>([\s\S]*?)(?=</BusinessNameLine1Txt>)')
+FILER = re.compile(r'<Filer>([\s\S]*?)(?=</Filer>)')
+ADDRESS = re.compile(r'<USAddress>([\s\S]*?)(?=</USAddress>)')
+STREET = re.compile(r'<AddressLine1Txt>([\s\S]*?)(?=</AddressLine1Txt>)')
+CITY = re.compile(r'<CityNm>([\s\S]*?)(?=</CityNm>)')
+STATE = re.compile(r'<StateAbbreviationCd>([\s\S]*?)(?=</StateAbbreviationCd>)')
+LEGAL = re.compile(r'<LegalDomicileStateCd>([\s\S]*?)(?=</LegalDomicileStateCd>)')
+ZIP = re.compile(r'<ZIPCd>([\s\S]*?)(?=</ZIPCd>)')
+XML_TAG = re.compile(r'<([\s\S]*?)>')
+ID_ptr = re.compile(r'<IdRelatedOrgTxblPartnershipGrp>([\s\S]*?)(?=</IdRelatedOrgTxblPartnershipGrp>)')
+ID_tx = re.compile(r'<IdRelatedOrgTxblCorpTrGrp>([\s\S]*?)(?=</IdRelatedOrgTxblCorpTrGrp>)')
+ID_utx = re.compile(r'<UnrelatedOrgTxblPartnershipGrp>([\s\S]*?)(?=</UnrelatedOrgTxblPartnershipGrp>)')
+supp_info = re.compile(r'<Form990ScheduleRPartVII>([\s\S]*?)(?=</Form990ScheduleRPartVII>)')
+trans = re.compile(r'<TransactionsRelatedOrgGrp>([\s\S]*?)(?=</TransactionsRelatedOrgGrp>)')
+DATE = re.compile(r'<TaxPeriodEndDt>([\s\S]*?)(?=</TaxPeriodEndDt>)')
+GS = re.compile(r'<GrossReceiptsAmt>([\s\S]*?)(?=</GrossReceiptsAmt>)')
+DC = re.compile(r'<DirectControllingNACd>([\s\S]*?)(?=</DirectControllingNACd>)')
+ET = re.compile(r'<EntityTypeTxt>([\s\S]*?)(?=</EntityTypeTxt>)')
+CO = re.compile(r'<ControlledOrganizationInd>([\s\S]*?)(?=</ControlledOrganizationInd>)')
+
+tran_amt = re.compile(r'<InvolvedAmt>([\s\S]*?)(?=</InvolvedAmt>)')
+tran_type = re.compile(r'<TransactionTypeTxt>([\s\S]*?)(?=</TransactionTypeTxt>)')
+REVENUE = re.compile(r'<CYTotalRevenueAmt>([\s\S]*?)(?=</CYTotalRevenueAmt>)')
+NI = re.compile(r'<CYRevenuesLessExpensesAmt>([\s\S]*?)(?=</CYRevenuesLessExpensesAmt>)')
+RX = re.compile(r'<RelatedOrganizationsAmt>([\s\S]*?)(?=</RelatedOrganizationsAmt>)')
+
+def ddos(x):
+    y=ADDRESS.findall(x)
+    y=list(y)
+    for i in y:
+        zip=ZIP.findall(i)
+        city=CITY.findall(i)
+        state=STATE.findall(i)
+        street=STREET.findall(i)
+        
+    return zip, city, state, street
+en = en    
+#add this code to use an excel file of EINs to search
+#mn=pd.read_excel('EIN.xlsx')
+#mn=mn.dropna()
+#en = mn['EIN'].astype(str).tolist()
+#en = " ".join(en).replace('-','')
+#en = en.split()
+ein = en + [463130985,463131350,741166904,751947007,751606705,751037226,751921898,741161944,751570933,202850920,
+       753242749,273513154,742460815,274434451,464007700,203749695,741595711,742519752,454510252,813040663,810872075,
+       260194016]
+       
+folder_path =
+zip_names = os.listdir(folder_path)
+index = []
+
+for name in zip_names:
+    zip_path = folder_path + '/' + name
+    index.append(zip_path)
+
+for path in index:
+    print(path)
+    wb.save('NP.xlsx')
+    print('saved')
+    try:
+        with zipfile.ZipFile(path, 'r') as zip_ref:
+            for file_info in zip_ref.infolist():
+                compression_method = file_info.compress_type
+                file_name = file_info.filename
+                with zip_ref.open(file_name) as file:
+                    xml_doc = file.read().decode('utf-8')
+                    txt = str(xml_doc)
+                    if EIN.findall(txt):
+                        Ee=EIN.findall(txt)
+                        EEE=list(Ee)
+                        for i in ein:
+                            if int(EEE[0])==int(i):
+                                print(EEE[0],i)
+                                partnerships = Sch_R.findall(txt)
+                                if len(partnerships) > 0:
+                                    dof=DATE.findall(txt)
+                                    if WEB.findall(txt):
+                                        web=WEB.findall(txt)
+                                    else:
+                                        web=''
+                                    rev=REVENUE.findall(txt)
+                                    gs=GS.findall(txt)
+                                    net=NI.findall(txt)
+                                    if RX.findall(txt):
+                                        rel=RX.findall(txt)
+                                    else:
+                                        rel=""
+                                    filer=FILER.findall(txt)
+                                    filer=str(filer)
+                                    rein=EIN.findall(filer)
+                                    fname=NAME.findall(filer)
+                                    fzip,fcity,fstate,fstreet=ddos(filer)
+                                    #print(search)
+                                    relatives = r_info.findall(txt)
+                                    relatives = str(relatives)
+                                    
+                                    if ID_ptr.findall(relatives):
+                                        
+                                    
+                                        for item in ID_ptr.findall(relatives):
+                                            a = str(item)
+                                            aname = ""
+                                            azip = ""
+                                            acity = ""
+                                            astate = ""
+                                            astreet = ""
+                                            pein = ""
+                                            Dc = ''
+                                            Et = ''
+                                            Co = ''
+                                            Dc_m = DC.findall(a)
+                                            if Dc_m:
+                                                Dc = Dc_m[0]
+                                            Et_m = ET.findall(a)
+                                            if Et_m:
+                                                Et = Et_m[0]
+                                            Co_m = CO.findall(a)
+                                            if Co_m:
+                                                Co = Co_m[0]
+                                            aname_match = NAME.findall(a)
+                                            if aname_match:
+                                                aname = aname_match[0]
+                                            azip_match = ZIP.findall(a)
+                                            if azip_match:
+                                                azip = azip_match[0]
+                                            acity_match = CITY.findall(a)
+                                            if acity_match:
+                                                acity = acity_match[0]
+                                           
+                                            astate_match = STATE.findall(a)
+                                            if astate_match:
+                                                astate = astate_match[0]
+                                           
+                                            
+                                            astreet_match = STREET.findall(a)
+                                            if astreet_match:
+                                                astreet = astreet_match[0]
+                                            
+                                            
+                                            pein_match = EIN.findall(a)
+                                            if pein_match:
+                                                pein = pein_match[0]
+                                            
+                                            ws.cell(row=row_index,column=1,value=str(file).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=2,value=str(dof[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=3,value=str(fname[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=4,value=str(rein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=5,value=str(czip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=6,value=str(ccity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=7,value=str(cstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=8,value=str(cstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=9,value=str(cname).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=10,value=str(czip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=11,value=str(ccity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=12,value=str(cstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=13,value=str(cstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=14,value=str(cein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=15,value='c')
+                                            ws.cell(row=row_index,column=16,value=str(web[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=17,value=str(rev[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=18,value=str(net[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=19,value=str(rel).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=20,value='')
+                                            ws.cell(row=row_index,column=21,value='')
+                                            ws.cell(row=row_index,column=22,value=str(gs[0]).replace('[', '').replace(']',''))
+                                            row_index +=1
+                                            wb.save('NP.xlsx')    
+                                            print('workeda')
+                                            
+                                    else:
+                                        print('nonea')
+                                        wb.save('NP.xlsx')
+                                            
+                                    if ID_tx.findall(relatives):
+                                      
+                                        for item in ID_tx.findall(relatives):
+                                       
+                                            b = str(item)
+                                            
+                                            bname = ""
+                                            bzip = ""
+                                            bcity = ""
+                                            bstate = ""
+                                            bstreet = ""
+                                            bein = ""
+                                            Dc = ''
+                                            Et = ''
+                                            Co = ''
+                                            Dc_m = DC.findall(b)
+                                            if Dc_m:
+                                                Dc = Dc_m[0]
+                                            Et_m = ET.findall(b)
+                                            if Et_m:
+                                                Et = Et_m[0]
+                                            Co_m = CO.findall(b)
+                                            if Co_m:
+                                                Co = Co_m[0]
+                               
+                                            bname_match = NAME.findall(b)
+                                            if bname_match:
+                                                bname = bname_match[0]
+                                            
+                                            bzip_match = ZIP.findall(b)
+                                            if bzip_match:
+                                                bzip = bzip_match[0]
+                                            
+                                            bcity_match = CITY.findall(b)
+                                            if bcity_match:
+                                                bcity = bcity_match[0]
+                                            
+                                            bstate_match = STATE.findall(b)
+                                            if bstate_match:
+                                                bstate = bstate_match[0]
+                                            
+                                            bstreet_match = STREET.findall(b)
+                                            if bstreet_match:
+                                                bstreet = bstreet_match[0]
+                                            
+                                            bein_match = EIN.findall(b)
+                                            if bein_match:
+                                                bein = bein_match[0]
+                                            
+                                           
+                                 
+                                            ws.cell(row=row_index,column=1,value=str(file).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=2,value=str(dof[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=3,value=str(fname[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=4,value=str(rein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=5,value=str(czip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=6,value=str(ccity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=7,value=str(cstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=8,value=str(cstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=9,value=str(cname).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=10,value=str(czip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=11,value=str(ccity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=12,value=str(cstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=13,value=str(cstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=14,value=str(cein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=15,value='c')
+                                            ws.cell(row=row_index,column=16,value=str(web[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=17,value=str(rev[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=18,value=str(net[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=19,value=str(rel).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=20,value='')
+                                            ws.cell(row=row_index,column=21,value='')
+                                            ws.cell(row=row_index,column=22,value=str(gs[0]).replace('[', '').replace(']',''))
+                                            row_index += 1
+                                            wb.save('NP.xlsx')    
+                                            print('worked')
+                                        else:
+                                            print('none')
+
+                                
+                                    if ID_utx.findall(relatives):
+                                    
+                                        extracted_info = []
+                                        
+                                     
+                                        for item in ID_utx.findall(relatives):
+                                         
+                                            c = str(item)
+                                            
+                                         
+                                            cname = ""
+                                            czip = ""
+                                            ccity = ""
+                                            cstate = ""
+                                            cstreet = ""
+                                            cein = ""
+                                            
+                                       
+                                            cname_match = NAME.findall(c)
+                                            if cname_match:
+                                                cname = cname_match[0]
+                                            
+                                            czip_match = ZIP.findall(c)
+                                            if czip_match:
+                                                czip = czip_match[0]
+                                            
+                                            ccity_match = CITY.findall(c)
+                                            if ccity_match:
+                                                ccity = ccity_match[0]
+                                            
+                                            cstate_match = STATE.findall(c)
+                                            if cstate_match:
+                                                cstate = cstate_match[0]
+                                            
+                                            cstreet_match = STREET.findall(c)
+                                            if cstreet_match:
+                                                cstreet = cstreet_match[0]
+                                            
+                                            cein_match = EIN.findall(c)
+                                            if cein_match:
+                                                cein = cein_match[0]
+                                            
+                                            
+                                        
+                                            ws.cell(row=row_index,column=1,value=str(file).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=2,value=str(dof[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=3,value=str(fname[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=4,value=str(rein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=5,value=str(czip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=6,value=str(ccity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=7,value=str(cstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=8,value=str(cstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=9,value=str(cname).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=10,value=str(czip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=11,value=str(ccity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=12,value=str(cstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=13,value=str(cstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=14,value=str(cein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=15,value='c')
+                                            ws.cell(row=row_index,column=16,value=str(web[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=17,value=str(rev[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=18,value=str(net[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=19,value=str(rel).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=20,value='')
+                                            ws.cell(row=row_index,column=21,value='')
+                                            ws.cell(row=row_index,column=22,value=str(gs[0]).replace('[', '').replace(']',''))
+                                            row_index += 1
+                                            wb.save('NP.xlsx')    
+                                            print('worked')
+                                        else:
+                                            print('none')
+    
+    
+                                    if supp_info.findall(relatives):
+                                       
+                                        
+                                        
+                                      
+                                        for item in supp_info.findall(relatives):
+                                          
+                                            d = str(item)
+                                            
+                                      
+                                            dname = ""
+                                            dzip = ""
+                                            dcity = ""
+                                            dstate = ""
+                                            dstreet = ""
+                                            dein = ""
+                                            
+                                            dname_match = NAME.findall(d)
+                                            if dname_match:
+                                                dname = dname_match[0]
+                                            
+                                            dzip_match = ZIP.findall(d)
+                                            if dzip_match:
+                                                dzip = dzip_match[0]
+                                            
+                                            dcity_match = CITY.findall(d)
+                                            if dcity_match:
+                                                dcity = dcity_match[0]
+                                            
+                                            dstate_match = STATE.findall(d)
+                                            if dstate_match:
+                                                dstate = dstate_match[0]
+                                            
+                                            dstreet_match = STREET.findall(d)
+                                            if dstreet_match:
+                                                dstreet = dstreet_match[0]
+                                            
+                                            dein_match = EIN.findall(d)
+                                            if dein_match:
+                                                dein = dein_match[0]
+                                            ws.cell(row=row_index,column=1,value=str(file).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=2,value=str(dof[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=3,value=str(fname[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=4,value=str(rein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=5,value=str(dzip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=6,value=str(dcity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=7,value=str(dstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=8,value=str(dstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=9,value=str(dname).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=10,value=str(dzip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=11,value=str(dcity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=12,value=str(dstate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=13,value=str(dstreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=14,value=str(dein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=15,value='d')
+                                            ws.cell(row=row_index,column=16,value=str(web[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=17,value=str(rev[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=18,value=str(net[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=19,value=str(rel).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=20,value='')
+                                            ws.cell(row=row_index,column=21,value='')
+                                            ws.cell(row=row_index,column=22,value=str(gs[0]).replace('[', '').replace(']',''))
+                                            row_index += 1
+                                            wb.save('NP.xlsx')    
+                                            print('worked')
+                                        else:
+                                            print('none')
+    
+                                        
+                                    if trans.findall(relatives):
+                                       # Initialize a list to store the extracted information for each item
+                                        extracted_info = []
+                                        
+                                    
+                                        for item in trans.findall(relatives):
+                                            # Convert the item to a string
+                                            e = str(item)
+                                            
+                                          
+                                            ename = ""
+                                            ezip = ""
+                                            ecity = ""
+                                            estate = ""
+                                            estreet = ""
+                                            eein = ""
+                                            tamt = ''
+                                            ttype = ''
+                                            
+                                           
+                                            ename_match = NAME.findall(e)
+                                            if ename_match:
+                                                ename = ename_match[0]
+                                            
+                                            ezip_match = ZIP.findall(e)
+                                            if ezip_match:
+                                                ezip = ezip_match[0]
+                                            
+                                            ecity_match = CITY.findall(e)
+                                            if ecity_match:
+                                                ecity = ecity_match[0]
+                                            
+                                            estate_match = STATE.findall(e)
+                                            if estate_match:
+                                                estate = estate_match[0]
+                                            
+                                            estreet_match = STREET.findall(e)
+                                            if estreet_match:
+                                                estreet = estreet_match[0]
+                                            
+                                            eein_match = EIN.findall(e)
+                                            if eein_match:
+                                                eein = eein_match[0]
+
+                                            tran_match = tran_amt.findall(e)
+
+                                            if tran_match:
+                                                tamt = tran_match[0]
+                                                
+                                            trant_match = tran_type.findall(e)
+
+                                            if trant_match:
+                                                ttype = trant_match[0]
+                                         
+                                        
+                                            
+                                            ws.cell(row=row_index,column=1,value=str(file).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=2,value=str(dof[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=3,value=str(fname[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=4,value=str(rein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=5,value=str(ezip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=6,value=str(ecity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=7,value=str(estate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=8,value=str(estreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=9,value=str(ename).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=10,value=str(ezip).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=11,value=str(ecity).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=12,value=str(estate).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=13,value=str(estreet).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=14,value=str(eein).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=15,value='e')
+                                            ws.cell(row=row_index,column=16,value=str(web[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=17,value=str(rev[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=18,value=str(net[0]).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=19,value=str(rel).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=20,value=str(tamt).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=21,value=str(ttype).replace('[', '').replace(']',''))
+                                            ws.cell(row=row_index,column=22,value=str(gs[0]).replace('[', '').replace(']',''))
+                                            row_index += 1
+                                            wb.save('NP.xlsx')    
+                                            print('worked')
+                                        else:
+                                            print('none')
+                                    
+                                if row_index >= 1000000:
+                                        counter = 1
+                                        ws = wb.create_sheet(title='NP' + str(counter) + '.xlsx')
+                                        ws.append(['ID','DATE','FILER','RootEIN','FZIP','FCITY','FSTATE','FSTREET','ENTITY2','ZIP','CITY','STATE','STREET','2EIN','Website', 'Revenue', 'Net Income','RevenueRelated','TransAmt','TransType'])
+                                        row_index = 2
+                                        counter += 1   
+                                else:
+                                    continue 
+                                                    
+    except zipfile.BadZipFile as e:
+        print(f"Error processing {path}: Invalid ZIP file - {e}")
+    except Exception as e:
+        print(f"Error processing {path}: {e}")
+wb.save('np.xlsx')
+print('done!')
