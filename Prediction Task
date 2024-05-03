@@ -47,7 +47,7 @@ attention_masks = [item['attention_mask'] for item in tokenized_data]
 
 
 
-model = BertForSequenceClassification.from_pretrained('C:/Users/tyler/trained_model')
+model = BertForSequenceClassification.from_pretrained('')
 batch_size = 6
 model.eval()
 predictions = []
