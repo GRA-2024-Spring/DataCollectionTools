@@ -1,0 +1,122 @@
+import pandas as pd
+import torch
+from transformers import BertTokenizer
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, TensorDataset
+from transformers import BertForSequenceClassification, AdamW
+from tqdm import tqdm
+
+file= '.xlsx'
+data = pd.read_excel(file)
+data = data.dropna()
+Index= [number for number in data.index]
+training_data = []
+     
+for L in range(len(Index)):
+    if data.CODE[L] == 1.0:
+        dictionary = {}
+        dictionary['input_text'] = data.Sentence[L]
+        dictionary['label'] = data.CODE[L]
+        training_data.append(dictionary)
+    else:
+        dictionary = {}
+        dictionary['input_text'] = data.Sentence[L]
+        dictionary['label'] = data.CODE[L]
+        training_data.append(dictionary)
+
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+tokenized_data = tokenizer(
+    [example['input_text'] for example in training_data],
+    padding = True,
+    truncation = True,
+    return_tensors='pt'
+)
+labels = torch.tensor([example['label'] for example in training_data], dtype=torch.long)  # Fix applied here
+
+input_ids = tokenized_data['input_ids']
+attention_masks = tokenized_data['attention_mask']
+
+input_ids_train, input_ids_val, labels_train, labels_val = train_test_split(
+    tokenized_data['input_ids'],
+    labels,
+    test_size=0.2,
+    random_state=42
+)
+
+# Define BERT model architecture
+model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)
+
+# Set up training parameters
+batch_size = 4
+accumulation_steps = 4
+epochs = 3
+learning_rate = 2e-5
+
+# Create data loaders
+train_dataset = TensorDataset(input_ids_train, labels_train)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+val_dataset = TensorDataset(input_ids_val, labels_val)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+# Define loss function and optimizer
+criterion = torch.nn.CrossEntropyLoss()
+optimizer = AdamW(model.parameters(), lr=learning_rate)
+
+
+# Training loop
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
+model.train()
+
+for epoch in range(epochs):
+    total_loss = 0
+    for i, (input_ids, labels) in enumerate(tqdm(train_loader, desc=f'Epoch {epoch + 1}/{epochs}')):
+        input_ids, labels = input_ids.to(device), labels.to(device)
+        
+        optimizer.zero_grad()
+        
+        # Forward pass
+        outputs = model(input_ids)
+        
+        # Compute loss
+        loss = criterion(outputs.logits, labels)
+        total_loss += loss.item()
+        
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
+        
+        # Accumulate gradients
+        if (i + 1) % accumulation_steps == 0:
+            optimizer.zero_grad()
+
+    
+    # Evaluate on validation set
+    model.eval()
+    val_loss = 0
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for input_ids, labels in val_loader:
+            input_ids, labels = input_ids.to(device), labels.to(device)
+            
+            # Forward pass
+            outputs = model(input_ids)
+            
+            # Compute loss
+            loss = criterion(outputs.logits, labels)
+            val_loss += loss.item()
+            
+            # Compute accuracy
+            _, predicted = torch.max(outputs.logits, 1)
+            correct += (predicted == labels).sum().item()
+            total += labels.size(0)
+    
+    accuracy = correct / total
+    print(f'Epoch {epoch + 1}/{epochs}, Training Loss: {total_loss / len(train_loader)}, Validation Loss: {val_loss / len(val_loader)}, Validation Accuracy: {accuracy}')
+
+# Save the trained model
+model.save_pretrained('trained_model')
