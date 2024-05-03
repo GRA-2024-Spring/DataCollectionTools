@@ -1,0 +1,104 @@
+import urllib3
+import time
+import regex as re
+from bs4 import BeautifulSoup, ParserRejectedMarkup
+from openpyxl import Workbook
+from openpyxl import load_workbook
+import datetime
+from transformers import BertModel
+import pandas as pd
+from transformers import BertTokenizer
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, TensorDataset
+from transformers import BertForSequenceClassification, AdamW
+from tqdm import tqdm
+
+file = 'Healthcare (1).xlsx'
+
+data = pd.read_excel(file)
+data.fillna(0, inplace=True)
+Index= [number for number in data.index]
+training_data = []
+     
+for L in range(len(Index)):
+        dictionary = {}
+        dictionary['input_text'] = data.Sentence[L]
+        dictionary['label'] = data.CODE[L]
+        training_data.append(dictionary)
+
+print('Excel step complete.')
+
+        
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+input_texts = [str(example['input_text']) if isinstance(example['input_text'], str) else str(example['input_text']) for example in training_data]
+#labels = torch.tensor([example['label'] for example in training_data], dtype=torch.long)
+tokenized_data = []
+
+for input_text in tqdm(input_texts, desc='Tokenizing'):
+    tokenized_input=tokenizer(input_text, padding = True,truncation = True,return_tensors='pt')
+    tokenized_data.append(tokenized_input)
+    
+print('excel inputs translated for BERT')
+
+
+#pulling from tokenized input (a list of dictionaries w/ i_i a_m k/v pairs)
+input_ids = [item['input_ids'] for item in tokenized_data]
+attention_masks = [item['attention_mask'] for item in tokenized_data]
+
+
+
+model = BertForSequenceClassification.from_pretrained('C:/Users/tyler/trained_model')
+batch_size = 6
+model.eval()
+predictions = []
+max_seq_length = max(input_id.size(1) for input_id in input_ids)
+
+with torch.no_grad():
+    for i in tqdm(range(0, len(input_ids), batch_size), desc='Evaluating'):
+        # Reset padded lists at the beginning of each iteration
+        padded_input_ids = []
+        padded_attention_masks = []
+
+        # Extract batch input_ids and attention_masks
+        batch_input_ids = input_ids[i:i+batch_size]
+        batch_attention_masks = attention_masks[i:i+batch_size]
+
+        for input_id, attention_mask in zip(batch_input_ids, batch_attention_masks):
+            # Perform padding or truncation
+            if input_id.size(1) < max_seq_length:
+                padding_length = max_seq_length - input_id.size(1)
+                padding_tensor = torch.zeros((input_id.size(0), padding_length), dtype=torch.long)
+                input_id = torch.cat([input_id, padding_tensor], dim=1)
+            else:
+                input_id = input_id[:, :max_seq_length]
+
+            if attention_mask.size(1) < max_seq_length:
+                padding_length = max_seq_length - attention_mask.size(1)
+                padding_tensor = torch.zeros((attention_mask.size(0), padding_length), dtype=torch.long)
+                attention_mask = torch.cat([attention_mask, padding_tensor], dim=1)
+            else:
+                attention_mask = attention_mask[:, :max_seq_length]
+
+            # Append to the list of padded tensors
+            padded_input_ids.append(input_id)
+            padded_attention_masks.append(attention_mask)
+
+        # Stack the padded tensors into batches
+        input_ids_batch = torch.stack([tensor.squeeze() for tensor in padded_input_ids])
+        attention_masks_batch = torch.stack([tensor.squeeze() for tensor in padded_attention_masks])
+
+        # Perform inference on the batch
+        outputs = model(input_ids=input_ids_batch, attention_mask=attention_masks_batch)
+        batch_predictions = torch.argmax(outputs.logits, dim=1).tolist()
+        predictions.extend(batch_predictions)
+
+
+
+prediction_series = pd.Series(predictions)
+data['CODE'] = prediction_series
+
+data.to_excel('your_dataset_with_predictions_FINAL.xlsx', index=False)
+
+predictions_series.to_excel('predict_raw.xlsx', index = False)
+
+print('Prediction completed.')
