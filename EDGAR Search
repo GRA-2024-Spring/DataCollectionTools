@@ -22,7 +22,7 @@ zip_pattern = (r'ZIP:\s*(\d{5})')
 
 file = 'Healthcare.xlsx'
 
-#Initiate Spaghetti
+
 
 try:
     wb = load_workbook(file)
